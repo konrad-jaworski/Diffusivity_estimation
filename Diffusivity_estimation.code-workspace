@@ -4,6 +4,9 @@
 			"path": "."
 		},
 		{
+			"path": "../../Data_pulse_thermography"
+		},
+		{
 			"path": "../../Heat_diffusion_laser"
 		}
 	],
