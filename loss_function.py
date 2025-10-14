@@ -21,8 +21,13 @@ class DiffusiionLoss:
         coordis=sampler.lhs_tensor_indices(n_samples,mode='interior') # Collocation points
         coordis=torch.tensor(coordis,dtype=torch.float32,requires_grad=True).to(device='cuda')
 
-        temps=model(coordis)  # Predicted temperature at collocation points
-        dT=
+        temps=model(coordis)  # Predicted temperature at collocation points in space and time
+        grad_u = torch.autograd.grad(outputs=temps,
+                                     inputs=coordis,
+                                     grad_outputs=torch.ones_like(temps),
+                                    create_graph=True)[0]
+        
+        grad2_u=
 
         
 

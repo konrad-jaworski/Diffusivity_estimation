@@ -4,10 +4,7 @@
 			"path": "."
 		},
 		{
-			"path": "../../Data_pulse_thermography"
-		},
-		{
-			"path": "../../Heat_diffusion_laser"
+			"path": "../Desktop/Pulse_data_sample"
 		}
 	],
 	"settings": {}
