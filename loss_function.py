@@ -3,35 +3,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-
-class GradCalc:
-    """Utility class for computing gradients of outputs w.r.t. inputs."""
-    def __init__(self):
-        pass
-
-    def gradient(self, outputs, inputs):
-        """
-        Computes ∂outputs/∂inputs using autograd.
-
-        Args:
-            outputs: (N, 1) tensor
-            inputs:  (N, D) tensor, requires_grad=True
-
-        Returns:
-            grad: (N, D) tensor containing partial derivatives.
-        """
-        grad, = torch.autograd.grad(
-            outputs=outputs,
-            inputs=inputs,
-            grad_outputs=torch.ones_like(outputs),
-            create_graph=True,
-            retain_graph=True,
-            only_inputs=True
-        )
-        return grad
-    
 class DiffusiionLoss:
     def __init__(self):
         pass
 
-    def pde_loss(self, model, inputs):
+    def diffusion_loss(self, model , sampler,n_samples=100000):
+        """
+        Computes the diffusion loss based on the PDE residuals.
+
+        Args:
+            model: Neural network model approximating the solution.
+            sampler: An instance of LatinHyperCubeSampling for sampling points.
+
+        Returns:
+            loss: Scalar tensor representing the diffusion loss.
+        """
+        coordis=sampler.lhs_tensor_indices(n_samples,mode='interior') # Collocation points
+        coordis=torch.tensor(coordis,dtype=torch.float32,requires_grad=True).to(device='cuda')
+
+        temps=model(coordis)  # Predicted temperature at collocation points
+        dT=
+
+        
+
