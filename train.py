@@ -201,6 +201,8 @@ data=data[10:,95:145,130:180]  # Crop to region of interest
 
 
 
+
+
 physcics_loss=DiffusionLoss()
 
 
