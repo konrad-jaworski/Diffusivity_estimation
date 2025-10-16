@@ -6,7 +6,7 @@ class LatinHyperCubeSampling:
     def __init__(self, shape):
         self.shape = shape  # (T, H, W)
 
-    def lhs_tensor_indices(self, n_samples, seed=None, mode='full'):
+    def lhs_tensor_indices(self, n_samples=100000, seed=None, mode='full'):
         """
         Latin Hypercube Sampling for tensor indices.
 
@@ -42,7 +42,7 @@ class LatinHyperCubeSampling:
                 coords[:, 1] = np.clip(coords[:, 1], 0, H - 1)  # x
                 coords[:, 2] = np.clip(coords[:, 2], 0, W - 1)  # y
 
-                # ✅ Spatial-only boundary mask (ignore temporal boundary)
+                # Spatial-only boundary mask (ignore temporal boundary)
                 mask = (
                     (coords[:, 1] == 0) | (coords[:, 1] == H - 1) |
                     (coords[:, 2] == 0) | (coords[:, 2] == W - 1)

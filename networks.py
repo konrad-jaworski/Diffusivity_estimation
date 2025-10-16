@@ -27,9 +27,9 @@ class DiffusionNetwork(BaseNetwork):
     def __init__(self, input_size, output_size, hidden_layers, hidden_units, hidden_units_grad2, activation_function=nn.Tanh):
         super().__init__(input_size, output_size, hidden_layers, hidden_units, activation_function)
 
-        self.a_x = nn.Parameter(torch.randn(1))
-        self.a_y = nn.Parameter(torch.randn(1))
-        self.a_z = nn.Parameter(torch.randn(1))
+        self.a_x = nn.Parameter(torch.tensor([1e-6], dtype=torch.float32))
+        self.a_y = nn.Parameter(torch.tensor([1e-6], dtype=torch.float32))
+        self.a_z = nn.Parameter(torch.tensor([1e-6], dtype=torch.float32))
 
         self.grad2_z = nn.Sequential(
             nn.Linear(input_size, hidden_units_grad2),
