@@ -190,18 +190,23 @@ model=DiffusionNetwork(
 
 model=model.to(device)
 
-sampler=LatinHyperCubeSampling((399,50,50))
+sampler=LatinHyperCubeSampling((399,240,320))
 
 coordis_data=sampler.lhs_tensor_indices(n_samples=100000,mode='interior',seed=42)
 coordis_boundary=sampler.lhs_tensor_indices(n_samples=100000,mode='boundary',seed=42)
 
 data=np.load(r'E:\Heat_diffusion_laser_metadata\30_Sep_2025_06_30_29_FBH13mm_step_size_sim_step_0_002m_p1.npz',allow_pickle=True)
 data=np.array(data['data'],dtype=np.float32)
-data=data[10:,95:145,130:180]  # Crop to region of interest
+data=data[10:,:,:]  # Selection of cooling phase only
+
+data=sampler.extract_values(data, coordis_data)
+
+X=torch.from_numpy(data[:,:-1]).float().to(device)
+X=X.requires_grad_(True)
+y=torch.from_numpy(data[:,-1]).float().to(device)
 
 
-
-
+coordis_boundary=torch.tensor(coordis_boundary,dtype=torch.float32,requires_grad=True).to(device)
 
 physcics_loss=DiffusionLoss()
 
