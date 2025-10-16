@@ -1,2 +1,5 @@
 venv/
 .venv/
+
+venv_pc/
+.venv_pc/
