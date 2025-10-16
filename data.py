@@ -6,48 +6,56 @@ class LatinHyperCubeSampling:
     def __init__(self, shape):
         self.shape = shape  # (T, H, W)
 
-    def lhs_tensor_indices(self,n_samples, seed=None, mode='full'):
+    def lhs_tensor_indices(self, n_samples, seed=None, mode='full'):
         """
         Latin Hypercube Sampling for tensor indices.
-        
+
         mode:
             'full'     : sample anywhere
             'interior' : sample only inside, exclude boundaries
-            'boundary' : sample only on the boundary surfaces (hollow cube)
+            'boundary' : sample only on *spatial* boundary surfaces (exclude time boundaries)
 
         output:
-            Output numpy index array which contain data of 2 spatial and 1 temporal dimmension
+            numpy array of shape (n_samples, 3) with [t, x, y] or [T, H, W] indices.
         """
         T, H, W = self.shape
         sampler = qmc.LatinHypercube(d=3, seed=seed)
-        
+
         if mode in ['full', 'interior']:
             u = sampler.random(n=n_samples)
             if mode == 'full':
-                low, high = np.array([0,0,0]), np.array([T,H,W])
+                low, high = np.array([0, 0, 0]), np.array([T, H, W])
             else:  # interior
-                low, high = np.array([1,1,1]), np.array([T-1,H-1,W-1])
-            coords = low + u*(high-low)
+                low, high = np.array([1, 1, 1]), np.array([T - 1, H - 1, W - 1])
+            coords = low + u * (high - low)
             idx = np.floor(coords).astype(int)
-            idx[:,0] = np.clip(idx[:,0], 0, T-1)
-            idx[:,1] = np.clip(idx[:,1], 0, H-1)
-            idx[:,2] = np.clip(idx[:,2], 0, W-1)
+            idx[:, 0] = np.clip(idx[:, 0], 0, T - 1)
+            idx[:, 1] = np.clip(idx[:, 1], 0, H - 1)
+            idx[:, 2] = np.clip(idx[:, 2], 0, W - 1)
+
         elif mode == 'boundary':
-            idx = np.empty((0,3), dtype=int)
+            idx = np.empty((0, 3), dtype=int)
             while len(idx) < n_samples:
                 u = sampler.random(n=n_samples)
-                coords = np.floor(u * np.array([T,H,W])).astype(int)
-                coords[:,0] = np.clip(coords[:,0], 0, T-1)
-                coords[:,1] = np.clip(coords[:,1], 0, H-1)
-                coords[:,2] = np.clip(coords[:,2], 0, W-1)
-                # keep only boundary points
-                mask = (coords[:,0]==0)|(coords[:,0]==T-1)|(coords[:,1]==0)|(coords[:,1]==H-1)|(coords[:,2]==0)|(coords[:,2]==W-1)
+                coords = np.floor(u * np.array([T, H, W])).astype(int)
+                coords[:, 0] = np.clip(coords[:, 0], 0, T - 1)  # time
+                coords[:, 1] = np.clip(coords[:, 1], 0, H - 1)  # x
+                coords[:, 2] = np.clip(coords[:, 2], 0, W - 1)  # y
+
+                # ✅ Spatial-only boundary mask (ignore temporal boundary)
+                mask = (
+                    (coords[:, 1] == 0) | (coords[:, 1] == H - 1) |
+                    (coords[:, 2] == 0) | (coords[:, 2] == W - 1)
+                )
+
                 boundary_pts = coords[mask]
                 idx = np.unique(np.vstack((idx, boundary_pts)), axis=0)
+
             idx = idx[:n_samples]
+
         else:
             raise ValueError("mode must be 'full', 'interior', or 'boundary'")
-        
+
         return idx
 
     def extract_values(self, data, indices):

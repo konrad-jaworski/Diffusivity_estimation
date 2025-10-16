@@ -4,7 +4,7 @@
 			"path": "."
 		},
 		{
-			"path": "../Desktop/Pulse_data_sample"
+			"path": "../../Heat_diffusion_laser_metadata"
 		}
 	],
 	"settings": {}
