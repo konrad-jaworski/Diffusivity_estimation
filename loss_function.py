@@ -32,7 +32,7 @@ class DiffusionLoss:
         residual=grad_u[:,0]-(model.a_x*grad2_u[:,2]+model.a_y*grad2_u[:,1]+model.a_z*grad2_z[:,0])
         return torch.mean(residual**2)
     
-    def neumann_boundary_loss(self, model, sampler,n_samples=100000):
+    def neumann_boundary_loss(self, model, boundary_coordis):
 
         """
         Computes the Neumann boundary loss based on the PDE boundary conditions.
@@ -44,15 +44,13 @@ class DiffusionLoss:
         Returns:
             loss: Scalar tensor representing the Neumann boundary loss.
         """
-        coordis=sampler.lhs_tensor_indices(n_samples,mode='boundary') # Collocation points at boundary points
-        coordis=torch.tensor(coordis,dtype=torch.float32,requires_grad=True)
-        coordis=coordis.to(device)
+        
 
-        temps,_ = model(coordis)
+        temps,_ = model(boundary_coordis)
 
         grad_u = torch.autograd.grad(
             outputs=temps,
-            inputs=coordis,
+            inputs=boundary_coordis,
             grad_outputs=torch.ones_like(temps),
             create_graph=True
         )[0]
@@ -60,10 +58,10 @@ class DiffusionLoss:
         u_y = grad_u[:,1] # Gradient with respect to y 
         u_x = grad_u[:,2] # Gradient with respect to x
 
-        y, x = coordis[:, 1], coordis[:, 2] # Spatial coordinates
+        y, x = boundary_coordis[:, 1], boundary_coordis[:, 2] # Spatial coordinates
 
-        y_min, y_max = coordis[:,1].min(), coordis[:,1].max()
-        x_min, x_max = coordis[:,2].min(), coordis[:,2].max()
+        y_min, y_max = boundary_coordis[:,1].min(), boundary_coordis[:,1].max()
+        x_min, x_max = boundary_coordis[:,2].min(), boundary_coordis[:,2].max()
 
         eps = 1e-5  # small tolerance
 

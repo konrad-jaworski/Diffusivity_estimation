@@ -26,8 +26,10 @@ def plot_total_loss(epochs, total_losses):
     plt.pause(0.001)
 
 
-def train_pinn(model, sampler,data,
-               physcics_loss,
+def train_pinn(model,X,y,
+               coordis_data,
+               coordis_boundary,
+               physics_loss,
                n_epochs_adam=100000,
                lr_adam=1e-3,
                use_lbfgs=True,
@@ -62,15 +64,8 @@ def train_pinn(model, sampler,data,
     for epoch in trange(1, n_epochs_adam + 1, desc="Adam Training"):
 
         optimizer.zero_grad()
-        pde_loss = physcics_loss.pde_loss(model, sampler,n_samples=50000)
-        neumann_loss = physcics_loss.neumann_boundary_loss(model, sampler,n_samples=50000)
-
-        data_coordis=sampler.lhs_tensor_indices(n_samples=50000,mode='interior')
-        data_points=sampler.extract_values(data, data_coordis)
-    
-        X=torch.from_numpy(data_points[:,:-1]).float().to(device)
-        X=X.requires_grad_(True)
-        y=torch.from_numpy(data_points[:,-1]).float().to(device)
+        pde_loss = physics_loss.pde_loss(model, coordis_data)
+        neumann_loss = physics_loss.neumann_boundary_loss(model, coordis_boundary)
 
         temps,_=model(X)
         data_loss=torch.mean((temps-y)**2)
@@ -100,6 +95,11 @@ def train_pinn(model, sampler,data,
                 'total_losses': total_losses_log
             }, os.path.join(log_dir, f"adam_losses_epoch_{epoch}.pt"))
 
+
+        if device == 'cuda':
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+
         # Early stopping
         if total_loss.item() < best_loss:
             best_loss = total_loss.item()
@@ -118,15 +118,8 @@ def train_pinn(model, sampler,data,
 
         def closure():
             optimizer_lbfgs.zero_grad()
-            pde_loss = physcics_loss.pde_loss(model, sampler,n_samples=50000)
-            neumann_loss = physcics_loss.neumann_boundary_loss(model, sampler,n_samples=50000)
-
-            data_coordis=sampler.lhs_tensor_indices(n_samples=50000,mode='interior')
-            data_points=sampler.extract_values(data, data_coordis)
-
-            X=torch.from_numpy(data_points[:,:-1]).float().to(device)
-            X=X.requires_grad_(True)
-            y=torch.from_numpy(data_points[:,-1]).float().to(device)
+            pde_loss = physics_loss.pde_loss(model, coordis_data)
+            neumann_loss = physics_loss.neumann_boundary_loss(model, coordis_boundary)
             temps,_=model(X)
             data_loss=torch.mean((temps-y)**2)
            
@@ -144,12 +137,9 @@ def train_pinn(model, sampler,data,
             epochs_log.append(current_epoch)
             # Extract losses from closure for logging
             with torch.no_grad():
-                pde_losses_log.append(physcics_loss.pde_loss(model, sampler).item())
-                neumann_losses_log.append(physcics_loss.neumann_boundary_loss(model, sampler).item())
+                pde_losses_log.append(physics_loss.pde_loss(model, coordis_data).item())
+                neumann_losses_log.append(physics_loss.neumann_boundary_loss(model, coordis_boundary).item())
                 # Compute data loss on same points used in closure
-                X = torch.from_numpy(data_points[:,:-1]).float().to(device)
-                X = X.requires_grad_(True)
-                y = torch.from_numpy(data_points[:,-1]).float().to(device)
                 temps,_ = model(X)
                 data_loss = torch.mean((temps-y)**2)
                 data_losses_log.append(data_loss.item())
@@ -158,8 +148,11 @@ def train_pinn(model, sampler,data,
                     pde_losses_log[-1] + neumann_losses_log[-1] + data_losses_log[-1]
                 )
 
-            if epoch % 10 == 0:
+            if epoch % 100 == 0:
                 plot_total_loss(epochs_log, total_losses_log)
+
+            if epoch % 1000 == 0:
+                print(f"Epoch {epoch} | a_x={model.a_x.item():.3e}, a_y={model.a_y.item():.3e}, a_z={model.a_z.item():.3e}")
 
             # Save checkpoint
             if epoch % save_every == 0:
@@ -180,43 +173,42 @@ def train_pinn(model, sampler,data,
         'total_losses': total_losses_log
     }
 
-model=DiffusionNetwork(
+model = DiffusionNetwork(
     input_size=3,
     output_size=1,
     hidden_layers=8,
     hidden_units=30,
     hidden_units_grad2=20
-)
+).to(device)
 
-model=model.to(device)
+sampler = LatinHyperCubeSampling((399, 240, 320))
 
-sampler=LatinHyperCubeSampling((399,240,320))
+coordis_data = sampler.lhs_tensor_indices(n_samples=1000000, mode='interior', seed=42)
+coordis_boundary = sampler.lhs_tensor_indices(n_samples=100000, mode='boundary', seed=42)
 
-coordis_data=sampler.lhs_tensor_indices(n_samples=100000,mode='interior',seed=42)
-coordis_boundary=sampler.lhs_tensor_indices(n_samples=100000,mode='boundary',seed=42)
+data = np.load(r'E:\Heat_diffusion_laser_metadata\30_Sep_2025_06_30_29_FBH13mm_step_size_sim_step_0_002m_p1.npz', allow_pickle=True)
+data = np.array(data['data'], dtype=np.float32)
+data = data[10:, :, :]  # Cooling phase only
 
-data=np.load(r'E:\Heat_diffusion_laser_metadata\30_Sep_2025_06_30_29_FBH13mm_step_size_sim_step_0_002m_p1.npz',allow_pickle=True)
-data=np.array(data['data'],dtype=np.float32)
-data=data[10:,:,:]  # Selection of cooling phase only
+data = sampler.extract_values(data, coordis_data)
 
-data=sampler.extract_values(data, coordis_data)
+X = torch.from_numpy(data[:, :-1]).float().to(device)
+X.requires_grad_(True)
+y = torch.from_numpy(data[:, -1]).float().view(-1, 1).to(device)
 
-X=torch.from_numpy(data[:,:-1]).float().to(device)
-X=X.requires_grad_(True)
-y=torch.from_numpy(data[:,-1]).float().to(device)
+coordis_data = torch.tensor(coordis_data, dtype=torch.float32, requires_grad=True).to(device)
+coordis_boundary = torch.tensor(coordis_boundary, dtype=torch.float32, requires_grad=True).to(device)
 
-
-coordis_boundary=torch.tensor(coordis_boundary,dtype=torch.float32,requires_grad=True).to(device)
-
-physcics_loss=DiffusionLoss()
-
+physics_loss = DiffusionLoss()
 
 trained_model, losses_log = train_pinn(
     model=model,
-    sampler=sampler,
-    data=data,
-    physcics_loss=physcics_loss,  # Note: typo in parameter name: should match 'physics_loss'
-    n_epochs_adam=100000,         # choose suitable number of epochs
+    X=X,
+    y=y,
+    coordis_data=coordis_data,
+    coordis_boundary=coordis_boundary,
+    physics_loss=physics_loss,
+    n_epochs_adam=10000000,
     lr_adam=1e-3,
     use_lbfgs=True,
     n_epochs_lbfgs=2000,
