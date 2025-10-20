@@ -173,6 +173,8 @@ def train_pinn(model,X,y,
         'total_losses': total_losses_log
     }
 
+#---------------------------------------------------------------------------------------------------------------------------------------------
+# Definition of the model
 model = DiffusionNetwork(
     input_size=3,
     output_size=1,
@@ -181,25 +183,50 @@ model = DiffusionNetwork(
     hidden_units_grad2=20
 ).to(device)
 
-sampler = LatinHyperCubeSampling((399, 240, 320))
+# Data sampler class instance
+sampler = LatinHyperCubeSampling((399, 100, 100))
 
-coordis_data = sampler.lhs_tensor_indices(n_samples=1000000, mode='interior', seed=42)
-coordis_boundary = sampler.lhs_tensor_indices(n_samples=100000, mode='boundary', seed=42)
 
+# Collocation and boundary points
+coordis_data = sampler.lhs_tensor_indices(n_samples=100000, mode='interior', seed=42)
+coordis_boundary = sampler.lhs_tensor_indices(n_samples=50000, mode='boundary', seed=42)
+
+# Load and prepare data
 data = np.load(r'E:\Heat_diffusion_laser_metadata\30_Sep_2025_06_30_29_FBH13mm_step_size_sim_step_0_002m_p1.npz', allow_pickle=True)
 data = np.array(data['data'], dtype=np.float32)
 data = data[10:, :, :]  # Cooling phase only
 
+# Dimmensions of the data matrix
+t,h,w=data.shape
+
+# Center coordinates
+cy, cx = h // 2, w // 2
+
+# Half-size of the square
+r = 50  
+
+# Crop: [t, 100, 100]
+data = data[:, cy - r:cy + r, cx - r:cx + r]
+
+# Sampling the data hypercube at the collocation points
 data = sampler.extract_values(data, coordis_data)
 
+# Spliting data into input and output and conversion to torch tensors
 X = torch.from_numpy(data[:, :-1]).float().to(device)
 X.requires_grad_(True)
 y = torch.from_numpy(data[:, -1]).float().view(-1, 1).to(device)
 
+# Normalization of temperature values
+y=(y-y.min())/(y.max()-y.min())
+
+# Converting collocation and boundary coordinates to torch tensors
 coordis_data = torch.tensor(coordis_data, dtype=torch.float32, requires_grad=True).to(device)
 coordis_boundary = torch.tensor(coordis_boundary, dtype=torch.float32, requires_grad=True).to(device)
 
+# Physics loss instance
 physics_loss = DiffusionLoss()
+
+#---------------------------------------------------------------------------------------------------------------------------------------------
 
 trained_model, losses_log = train_pinn(
     model=model,
@@ -208,12 +235,12 @@ trained_model, losses_log = train_pinn(
     coordis_data=coordis_data,
     coordis_boundary=coordis_boundary,
     physics_loss=physics_loss,
-    n_epochs_adam=10000000,
+    n_epochs_adam=100000,
     lr_adam=1e-3,
-    use_lbfgs=True,
+    use_lbfgs=False,
     n_epochs_lbfgs=2000,
     save_every=1000,
     checkpoint_dir="./checkpoints",
     log_dir="./logs",
-    early_stop_patience=1000
+    early_stop_patience=10000
 )
